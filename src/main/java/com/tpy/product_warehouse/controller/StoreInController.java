@@ -5,12 +5,14 @@ import com.tpy.product_warehouse.api.ResponseResult;
 import com.tpy.product_warehouse.service.InOrderService;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiImplicitParam;
+import io.swagger.annotations.ApiImplicitParams;
 import io.swagger.annotations.ApiOperation;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import javax.annotation.Resource;
+import java.sql.SQLException;
 import java.util.List;
 
 @Api(tags = "入仓")
@@ -34,4 +36,13 @@ public class StoreInController {
         return inOrderService.findInOrderDetailByCardNo(cardNo);
     }
 
+    @ApiOperation(value="根据布号或订单号或者缸号查询入仓信息")
+    @ApiImplicitParams({
+            @ApiImplicitParam(name = "paramStype", value = "参数类型",paramType = "query",required = true,dataType = "Integer"),
+            @ApiImplicitParam(name = "param", value = "参数",paramType = "query",required = true,dataType = "String")
+    })
+    @GetMapping("save_in_order")
+    public ResponseResult findPendingOrderByNo(Integer paramStype,String param) throws SQLException {
+        return inOrderService.findPendingOrderByNo(paramStype,param);
+    }
 }
