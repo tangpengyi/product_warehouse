@@ -46,7 +46,7 @@ public class JDBCUtils {
      * @param params 需要传入参数，这些参数必须严格按照注入参数的顺序
      * @return
      */
-    public ResponseResult executeSql(String sSql,Object ... params) {
+    public int executeSql(String sSql,Object ... params) {
 
         PreparedStatement ps = null;
         int rs = 0;
@@ -56,18 +56,10 @@ public class JDBCUtils {
                 ps.setObject(i,params[i-1]);
             }
 
-            rs = ps.executeUpdate();
-
-            ResponseResult responseResult = new ResponseResult();
-            responseResult.setCode(200);
-            responseResult.setMsg("修改"+rs+"几行");
-            return responseResult;
+            return ps.executeUpdate();
         } catch (SQLException e) {
             e.printStackTrace();
-            ResponseResult responseResult = new ResponseResult();
-            responseResult.setCode(500);
-            responseResult.setMsg(e.getMessage());
-            return responseResult;
+            return rs;
         } finally {
             try {
                 close();

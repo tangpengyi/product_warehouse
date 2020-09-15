@@ -6,15 +6,24 @@ import com.tpy.product_warehouse.api.ResponseResult;
 import com.tpy.product_warehouse.service.InOrderService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 @Slf4j
 @Service
 public class InOrderServiceImpl implements InOrderService {
+
+    @Autowired
+    DataSourceTransactionManager dataSourceTransactionManager;
+    @Autowired
+    TransactionDefinition transactionDefinition;
 
     //订单号
     private final static int ORDERNO_STYPE = 1;
@@ -43,8 +52,8 @@ public class InOrderServiceImpl implements InOrderService {
     }
 
     @Override
-    public ResponseResult findInOrderDetailByCardNo(String orderNo) {
-        ArrayList<Map> list = null;
+    public ResponseResult findInOrderDetailByOrderNo(String orderNo) {
+        List<Map> list = null;
         try {
             list = inOrderDao.findInOrderDetailByOrderNo(orderNo);
         } catch (SQLException e) {
@@ -59,19 +68,19 @@ public class InOrderServiceImpl implements InOrderService {
     @Override
     public ResponseResult findPendingOrderByNo(int paramStype, String param) {
 
-        Map map = null;
+        List list = null;
         switch (paramStype){
             case ORDERNO_STYPE:
                 log.info("根据订单查询入仓单");
                 try {
-                    map = inOrderDao.findWarehouseReceiptByOrderNo(param);
+                    list = inOrderDao.findInOrderDetailByOrderNo(param);
                 } catch (SQLException e) {
                     e.printStackTrace();
                 }
                 break;
             case CARDNO_STYPE:
                 try {
-                    map = inOrderDao.findWarehouseReceiptByCardNo(param);
+                    list = inOrderDao.findWarehouseReceiptByCardNo(param);
                 } catch (SQLException e) {
                     e.printStackTrace();
                 }
@@ -79,7 +88,7 @@ public class InOrderServiceImpl implements InOrderService {
                 break;
             case BARCODE_STYPE:
                 try {
-                    map = inOrderDao.findWarehouseReceiptByBarCode(param);
+                    list = inOrderDao.findWarehouseReceiptByBarCode(param);
                 } catch (SQLException e) {
                     e.printStackTrace();
                 }
@@ -87,9 +96,34 @@ public class InOrderServiceImpl implements InOrderService {
                 break;
         }
 
-        if(map == null){
+        if(list == null){
             return CommonsResult.getFialResult("系统异常，查询失败");
         }
-        return CommonsResult.getSuccessResult("查询成功",map);
+        return CommonsResult.getSuccessResult("查询成功",list);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public ResponseResult addInStore(Map map) throws SQLException {
+        // 1. 调用存储过程，创建入库单号
+        String inStoreNo = inOrderDao.getInStoreNo();
+        log.info("新增入库单号："+inStoreNo);
+        map.put("inStoreNo",inStoreNo);
+        // 2. 新增入库单号
+        int i = inOrderDao.insertInStore(map);
+        if(i == 0){
+            return CommonsResult.getFialResult("入仓失败");
+        }
+
+
+
+        // 更新入库单数据
+        int isSucces = inOrderDao.modifyInStore(inStoreNo);
+        if(isSucces == 0){
+            return CommonsResult.getFialResult("更新");
+        }
+
+
+        return CommonsResult.getSuccessResult("入仓成功");
     }
 }
