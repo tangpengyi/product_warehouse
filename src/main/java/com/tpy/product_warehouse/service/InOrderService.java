@@ -7,11 +7,11 @@ import java.util.Map;
 
 public interface InOrderService {
 
-    public ResponseResult findAllPendingOrder();
+    public ResponseResult findAllPendingOrder() throws SQLException;
 
-    public ResponseResult findInOrderDetailByOrderNo(String orderNo);
+    public ResponseResult findInOrderDetailByOrderNo(String orderNo) throws SQLException;
 
     public ResponseResult findPendingOrderByNo(int paramStype,String param) throws SQLException;
 
-    public ResponseResult addInStore(Map map) throws SQLException;
+    public ResponseResult addInStore(Map map) throws SQLException, ClassNotFoundException;
 }

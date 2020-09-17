@@ -22,14 +22,14 @@ public class StoreInController {
 
     @ApiOperation(value="查询待入仓的订单")
     @GetMapping("in_order_list")
-    public ResponseResult findAllPendingOrder(){
+    public ResponseResult findAllPendingOrder() throws SQLException {
         return inOrderService.findAllPendingOrder();
     }
 
     @ApiOperation(value="查询入仓单布号（条码）明细", notes = "根据订单号查询")
     @ApiImplicitParam(name = "orderNo", value = "订单号",paramType = "query",required = true,dataType = "String")
     @GetMapping("in_order_detail")
-    public ResponseResult findInOrderDetailByOrderNo(String orderNo){
+    public ResponseResult findInOrderDetailByOrderNo(String orderNo) throws SQLException {
         return inOrderService.findInOrderDetailByOrderNo(orderNo);
     }
 
@@ -45,7 +45,7 @@ public class StoreInController {
 
     @ApiOperation(value="保存入仓信息")
     @PostMapping("save_in_order")
-    public ResponseResult addInStore(@RequestBody Map<String,Object> params) throws SQLException {
+    public ResponseResult addInStore(@RequestBody Map<String,Object> params) throws SQLException, ClassNotFoundException {
         params.put("loginName","唐鹏翼");
         return inOrderService.addInStore(params);
     }

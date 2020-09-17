@@ -15,23 +15,247 @@ import java.util.Map;
 @Component
 public class InOrderDao {
 
-    @Autowired
-    private JDBCUtils jdbcUtils;
-
-    public Map getInStoreIfno(String orderNo) throws SQLException {
-        ResultSet rs = jdbcUtils.queryData(getInStoreIfnoSql(), orderNo);
-        Map map = null;
+    //根据入库编号查询id
+    public String getStoreInGUIDByStoreInNo(String orderNo) throws SQLException, ClassNotFoundException {
+        ResultSet rs = JDBCUtils.queryData("SELECT uGUID FROM mmSTInHdr WHERE sStoreInNo = ?", orderNo);
+        String uGUID = null;
         while(rs.next()){
-
-
+            uGUID = rs.getString("uGUID");
         }
-
-        return null;
+        return uGUID;
     }
 
-    private Map getMapResltByResultSet(ResultSet rs) throws SQLException {
+    //条码入仓
+    public int barCodeIn(Map map) throws SQLException, ClassNotFoundException {
+        List list = new ArrayList();
+        list.add(map.get("ummInHdrGUID"));
+        list.add(map.get("ummInDtlGUID"));
+        list.add(map.get("sSeq"));
+        list.add(map.get("sBarCode"));
+        list.add(map.get("nQty"));
+        list.add(map.get("nNetQty"));
+        list.add(map.get("nGrossQty"));
+        list.add(map.get("nPkgExQty"));
+        list.add(map.get("nLength"));
+        list.add(map.get("sCreator"));
+        return JDBCUtils.executeSqlByList(barCodeInSql(),list);
+    }
+
+    // 条码入库sql
+    private String barCodeInSql(){
+        return "INSERT INTO dbo.mmBarCodeIn \n" +
+                "(uGUID,ummInHdrGUID,ummInDtlGUID,sSeq,sBarCode,nQty,nNetQty,nGrossQty,nPkgExQty\n" +
+                ",nLength,sCreator,tCreateTime) \n" +
+                "VALUES(NEWID(),?,?,?,?,?,?,?,?,?,?,CONVERT(VARCHAR(20),GETDATE(),120))";
+    }
+
+    /**
+     * 根据条码获取布信息
+     * @param barCode
+     * @return
+     */
+    public Map findFabricIfnoByBarcode(String barCode) throws SQLException, ClassNotFoundException {
+        ResultSet rs = JDBCUtils.queryData(findFabricIfnoByBarcodeSql(), barCode);
+        Map map = null;
+        while(rs.next()){
+            map = new HashMap();
+            map.put("ummInHdrGUID",rs.getString("ummInHdrGUID"));
+            map.put("ummInDtlGUID",rs.getString("ummInDtlGUID"));
+            map.put("sSeq",rs.getString("sSeq"));
+            map.put("nQty",rs.getBigDecimal("nQty"));
+            map.put("nNetQty",rs.getBigDecimal("nNetQty"));
+            map.put("nGrossQty",rs.getBigDecimal("nGrossQty"));
+            map.put("nPkgExQty",rs.getBigDecimal("nPkgExQty"));
+            map.put("nLength",rs.getBigDecimal("nLength"));
+        }
+        return map;
+    }
+
+    private String findFabricIfnoByBarcodeSql(){
+        return "SELECT \n" +
+                "C.uGUID AS ummInHdrGUID,L.uGUID AS ummInDtlGUID,E.uGUID,E.sSeq,E.sBarCode\n" +
+                ",nQty=E.nQty, E.nLength, nNetQty=E.nNetQty\n" +
+                ",nGrossQty=E.nQty*2.2044,E.nPkgExQty\n" +
+                "FROM dbo.mmSTInHdr AS C WITH(NOLOCK)\n" +
+                "INNER JOIN dbo.mmSTInDtl AS L WITH(NOLOCK) ON C.uGUID=L.ummInHdrGUID\n" +
+                "INNER JOIN dbo.mmBarCodeIn AS E  WITH(NOLOCK) ON L.uGUID=ummInDtlGUID\n" +
+                "LEFT JOIN dbo.mmStore HY WITH(NOLOCK) ON HY.uGUID=C.ummStoreGUID\n" +
+                "WHERE E.sBarCode = ?  AND HY.sStoreNo='G026'\n" +
+                "AND (E.sBarCode NOT IN (SELECT sBarCode FROM dbo.mmBarCodeIn C \n" +
+                "INNER JOIN dbo.mmSTInHdr D ON D.uGUID=C.ummInHdrGUID\n" +
+                "INNER JOIN dbo.mmStore E ON D.ummStoreGUID=E.uGUID \n" +
+                "WHERE E.sStoreNo IN ('G02','G025','G023'))\n" +
+                "OR ISNULL(E.sStatus,'')='入退')";
+    }
+
+    /**
+     * 新增入库信息
+     * @param
+     * @return
+     */
+    public int insertStoreInDtl(List list) throws SQLException, ClassNotFoundException {
+        return JDBCUtils.executeSqlByList(insertStoreInDtlSql(), list);
+    }
+
+    public String insertStoreInDtl(Map map) throws SQLException, ClassNotFoundException {
+        List list = new ArrayList<Object>();
+        list.add(map.get("ummInHdrGUID"));
+        list.add(map.get("ummMaterialGUID"));
+        list.add(map.get("utmColorGUID"));
+        list.add(map.get("usdOrderLotGUID"));
+        list.add(map.get("uRefDtlGUID"));
+        list.add(map.get("upbCustomerGUID"));
+
+        ResultSet resultSet = JDBCUtils.querySqlByList(insertStoreInDtlSql2(map), list);
+        String uGUID = null;
+        while(resultSet.next()){
+            uGUID = resultSet.getString("uGUID");
+        }
+        return uGUID;
+    }
+
+    private String insertStoreInDtlSql2(Map map){
+        String sql = "DECLARE @uGUID UNIQUEIDENTIFIER=NEWID(),@ummInHdrGUID UNIQUEIDENTIFIER=?,@ummMaterialGUID UNIQUEIDENTIFIER=?,@utmColorGUID UNIQUEIDENTIFIER=?\n" +
+                ",@usdOrderLotGUID UNIQUEIDENTIFIER=?,@uRefDtlGUID UNIQUEIDENTIFIER=?,@sMaterialNo nvarchar(100)='"+map.get("sMaterialNo")+"'\n" +
+                ",@sMaterialName nvarchar(200)='"+map.get("sMaterialName")+"',@sComponent nvarchar(400)='"+map.get("sComponent")+"',@sColorNo nvarchar(100)='"+map.get("sColorNo")+"',@sColorName nvarchar(200)='"+map.get("sColorName")+"'\n" +
+                ",@sMaterialLot NVARCHAR(100)='"+map.get("sMaterialLot")+"',@sCardNo nvarchar(50)='"+map.get("sCardNo")+"',@sGrade nvarchar(20)='"+map.get("sGrade")+"',@sLocation nvarchar(50)='"+map.get("sLocation")+"'\n" +
+                ",@nInQty decimal(18, 3)="+map.get("nInQty")+",@nInGrossQty decimal(18, 3)="+map.get("nInGrossQty")+",@sUnit nvarchar(10)='"+map.get("sUnit")+"',@nInPkgQty decimal(18, 3)="+map.get("nInPkgQty")+"\n" +
+                ",@nInPkgUnitQty decimal(18, 3)="+map.get("nInPkgUnitQty")+",@nInPkgExQty decimal(18, 3)="+map.get("nInPkgExQty")+",@nIniPrice decimal(18, 6)="+map.get("nIniPrice")+",@sOrderNo nvarchar(100)='"+map.get("sOrderNo")+"'\n" +
+                ",@sOrderColorNo nvarchar(100)='"+map.get("sOrderColorNo")+"',@sCustomerOrderNo nvarchar(100)='"+map.get("sCustomerOrderNo")+"',@sCustomerMaterialNo nvarchar(100)='"+map.get("sCustomerMaterialNo")+"'\n" +
+                ",@sRemark nvarchar(1000)='"+map.get("sRemark")+"',@nDiff04 decimal(9, 4)="+map.get("nDiff04")+",@sDiff29 nvarchar(100)='"+map.get("sDiff29")+"',@sDiff01 nvarchar(100)='"+map.get("sDiff01")+"'\n" +
+                ",@upbCustomerGUID UNIQUEIDENTIFIER=?,@sUsage nvarchar(10)='"+map.get("sUsage")+"',@sYarnInfo nvarchar(500)='"+map.get("sYarnInfo")+"',@nYarnLength decimal(18, 2)='"+map.get("nYarnLength")+"'\n" +
+                ",@sMaterialTypeName nvarchar(50)='"+map.get("sMaterialTypeName")+"',@sPatternNo nvarchar(50)='"+map.get("sPatternNo")+"',@sDtlQtyList nvarchar(4000)='"+map.get("sDtlQtyList")+"',@sProductWidth nvarchar(20)='"+map.get("sProductWidth")+"'\n" +
+                ",@sProductGMWT nvarchar(20)='"+map.get("sProductGMWT")+"',@sFinishingMethod nvarchar(150)='"+map.get("sFinishingMethod")+"',@sShelfNo nvarchar(50)='"+map.get("sShelfNo")+"',@nInLength decimal(18, 3)="+map.get("nInLength")+"\n" +
+                ",@nInWeight decimal(18, 3)="+map.get("nInWeight")+",@sWeightUnit nvarchar(10)='"+map.get("sWeightUnit")+"',@nInNetQty decimal(18, 2)="+map.get("nInNetQty")+",@sCustomerSpecification nvarchar(200)='"+map.get("nInNetQty")+"'\n" +
+                "\n" +
+                "\n" +
+                "INSERT INTO dbo.mmSTInDtl \n" +
+                "(\n" +
+                "uGUID,ummInHdrGUID,ummMaterialGUID,utmColorGUID,usdOrderLotGUID,uRefDtlGUID\n" +
+                ",sMaterialNo,sMaterialName,sComponent,sColorNo,sColorName,sMaterialLot\n" +
+                ",sCardNo,sGrade,sLocation,nInQty, nInGrossQty, sUnit\n" +
+                ",nInPkgQty,nInPkgUnitQty,nInPkgExQty,nIniPrice,  nACPrice,  nAmount\n" +
+                ",nTaxRate,nTaxAmount,nNoTaxAmount,nExchangeRate,nStockQty,nStockGrossQty\n" +
+                ",nStockPkgQty,nStockPkgExQty,nStockAmount,sOrderNo,sOrderColorNo,sCustomerOrderNo\n" +
+                ",sCustomerMaterialNo,sRemark,sDiff01,sDiff29,nDiff01,nDiff02\n" +
+                ",nDiff03,nDiff04,nDiff05,nDiff06,nDiff07,nDiff08\n" +
+                ",nDiff09,nDiff10,nDiff11,nDiff12,nDiff13,nDiff14\n" +
+                ",nDiff15,nDiff16,nDiff17,nDiff18,nDiff19,nDiff20\n" +
+                ",nDiff21,nDiff22,nDiff23,nDiff24,nDiff25,nDiff26\n" +
+                ",nDiff27,nDiff29,nDiff30,upbCustomerGUID,sUsage,sYarnInfo\n" +
+                ",nNeedleQty,nDialDiameter,nYarnLength,sMaterialTypeName,sPatternNo,sDtlQtyList\n" +
+                ",sProductWidth,sProductGMWT,sFinishingMethod,sShelfNo,nInRawQty,nInSmallQty\n" +
+                "\n" +
+                ",nInLength,nInWeight,sWeightUnit,nOSPrice,nOSAddAmount,nSalesPrice\n" +
+                ",nSalesAddAmount,nAmountNat,nTaxAmountNat,nNoTaxAmountNat,nStockAmountNat,nStockRawQty\n" +
+                ",nStockSmallQty,nStockLength,nStockWeight,nInCostPrice,nInCostAmount,nStockCostAmount\n" +
+                ",sCustomerSpecification,nInNetQty,nStockNetQty)  --105\n" +
+                "\n" +
+                "VALUES(\n" +
+                "@uGUID,@ummInHdrGUID,@ummMaterialGUID,@utmColorGUID,@usdOrderLotGUID,@uRefDtlGUID,\n" +
+//                "?,?,?,?,?,\n" +
+                "@sMaterialNo,@sMaterialName,@sComponent,@sColorNo,@sColorName,@sMaterialLot\n" +
+                ",@sCardNo,@sGrade,@sLocation,@nInQty,@nInGrossQty,@sUnit\n" +
+                ",@nInPkgQty,@nInPkgUnitQty,@nInPkgExQty,@nIniPrice,0,0,\n" +
+                "0,0,0,0,0,0,\n" +
+                "0,0,0,@sOrderNo,@sOrderColorNo,@sCustomerOrderNo\n" +
+                ",@sCustomerMaterialNo,@sRemark,@sDiff01,@sDiff29,0,0\n" +
+                ",0,@nDiff04,0,0,0,0\n" +
+                ",0,0,0,0,0,0\n" +
+                ",0,0,0,0,0,0\n" +
+                ",0,0,0,0,0,0\n" +
+                ",0,0,0,@upbCustomerGUID,@sUsage,@sYarnInfo\n" +
+//                ",0,0,0,?,@sUsage,@sYarnInfo\n" +
+                ",0,0,@nYarnLength,@sMaterialTypeName,@sPatternNo,@sDtlQtyList\n" +
+                ",@sProductWidth,@sProductGMWT,@sFinishingMethod,@sShelfNo,0,0\n" +
+                "\n" +
+                ",@nInLength,@nInWeight,@sWeightUnit,0,0,0\n" +
+                ",0,0,0,0,0,0\n" +
+                ",0,0,0,0,0,0\n" +
+                ",@sCustomerSpecification,@nInNetQty,0)\n"+
+                "select @uGUID as uGUID";
+        return sql;
+    }
+
+    // 入库信息sql
+    private String insertStoreInDtlSql(){
+        return "DECLARE @ummInHdrGUID UNIQUEIDENTIFIER=?,@ummMaterialGUID UNIQUEIDENTIFIER=?,@utmColorGUID UNIQUEIDENTIFIER=?\n" +
+                ",@usdOrderLotGUID UNIQUEIDENTIFIER=?,@uRefDtlGUID UNIQUEIDENTIFIER=?,@sMaterialNo nvarchar(100)=?\n" +
+                ",@sMaterialName nvarchar(200)=?,@sComponent nvarchar(400)=?,@sColorNo nvarchar(100)=?,@sColorName nvarchar(200)=?\n" +
+                ",@sMaterialLot NVARCHAR(100)=?,@sCardNo nvarchar(50)=?,@sGrade nvarchar(20)=?,@sLocation nvarchar(50)=?\n" +
+                ",@nInQty decimal(18, 3)=?,@nInGrossQty decimal(18, 3)=?,@sUnit nvarchar(10)=?,@nInPkgQty decimal(18, 3)=?\n" +
+                ",@nInPkgUnitQty decimal(18, 3)=?,@nInPkgExQty decimal(18, 3)=?,@nIniPrice decimal(18, 6)=?,@sOrderNo nvarchar(100)=?\n" +
+                ",@sOrderColorNo nvarchar(100)=?,@sCustomerOrderNo nvarchar(100)=?,@sCustomerMaterialNo nvarchar(100)=?\n" +
+                ",@sRemark nvarchar(1000)=?,@nDiff04 decimal(9, 4)=?,@sDiff29 nvarchar(100)=?,@sDiff01 nvarchar(100)=?\n" +
+                ",@upbCustomerGUID UNIQUEIDENTIFIER=?,@sUsage nvarchar(10)=?,@sYarnInfo nvarchar(500)=?,@nYarnLength decimal(18, 2)=?\n" +
+                ",@sMaterialTypeName nvarchar(50)=?,@sPatternNo nvarchar(50)=?,@sDtlQtyList nvarchar(4000)=?,@sProductWidth nvarchar(20)=?\n" +
+                ",@sProductGMWT nvarchar(20)=?,@sFinishingMethod nvarchar(150)=?,@sShelfNo nvarchar(50)=?,@nInLength decimal(18, 3)=?\n" +
+                ",@nInWeight decimal(18, 3)=?,@sWeightUnit nvarchar(10)=?,@nInNetQty decimal(18, 2)=?,@sCustomerSpecification nvarchar(200)=?\n" +
+                "\n" +
+                "\n" +
+                "INSERT INTO dbo.mmSTInDtl \n" +
+                "(\n" +
+                "ummInHdrGUID,ummMaterialGUID,utmColorGUID,usdOrderLotGUID,uRefDtlGUID\n" +
+                ",sMaterialNo,sMaterialName,sComponent,sColorNo,sColorName,sMaterialLot\n" +
+                ",sCardNo,sGrade,sLocation,nInQty, nInGrossQty, sUnit\n" +
+                ",nInPkgQty,nInPkgUnitQty,nInPkgExQty,nIniPrice,  nACPrice,  nAmount\n" +
+                ",nTaxRate,nTaxAmount,nNoTaxAmount,nExchangeRate,nStockQty,nStockGrossQty\n" +
+                ",nStockPkgQty,nStockPkgExQty,nStockAmount,sOrderNo,sOrderColorNo,sCustomerOrderNo\n" +
+                ",sCustomerMaterialNo,sRemark,sDiff01,sDiff29,nDiff01,nDiff02\n" +
+                ",nDiff03,nDiff04,nDiff05,nDiff06,nDiff07,nDiff08\n" +
+                ",nDiff09,nDiff10,nDiff11,nDiff12,nDiff13,nDiff14\n" +
+                ",nDiff15,nDiff16,nDiff17,nDiff18,nDiff19,nDiff20\n" +
+                ",nDiff21,nDiff22,nDiff23,nDiff24,nDiff25,nDiff26\n" +
+                ",nDiff27,nDiff29,nDiff30,upbCustomerGUID,sUsage,sYarnInfo\n" +
+                ",nNeedleQty,nDialDiameter,nYarnLength,sMaterialTypeName,sPatternNo,sDtlQtyList\n" +
+                ",sProductWidth,sProductGMWT,sFinishingMethod,sShelfNo,nInRawQty,nInSmallQty\n" +
+                "\n" +
+                ",nInLength,nInWeight,sWeightUnit,nOSPrice,nOSAddAmount,nSalesPrice\n" +
+                ",nSalesAddAmount,nAmountNat,nTaxAmountNat,nNoTaxAmountNat,nStockAmountNat,nStockRawQty\n" +
+                ",nStockSmallQty,nStockLength,nStockWeight,nInCostPrice,nInCostAmount,nStockCostAmount\n" +
+                ",sCustomerSpecification,nInNetQty,nStockNetQty)  --105\n" +
+                "\n" +
+                "VALUES(\n" +
+                "@ummInHdrGUID,@ummMaterialGUID,@utmColorGUID,@usdOrderLotGUID,@uRefDtlGUID,\n" +
+                "@sMaterialNo,@sMaterialName,@sComponent,@sColorNo,@sColorName,@sMaterialLot\n" +
+                ",@sCardNo,@sGrade,@sLocation,@nInQty,@nInGrossQty,@sUnit\n" +
+                ",@nInPkgQty,@nInPkgUnitQty,@nInPkgExQty,@nIniPrice,0,0,\n" +
+                "0,0,0,0,0,0,\n" +
+                "0,0,0,@sOrderNo,@sOrderColorNo,@sCustomerOrderNo\n" +
+                ",@sCustomerMaterialNo,@sRemark,@sDiff01,@sDiff29,0,0\n" +
+                ",0,@nDiff04,0,0,0,0\n" +
+                ",0,0,0,0,0,0\n" +
+                ",0,0,0,0,0,0\n" +
+                ",0,0,0,0,0,0\n" +
+                ",0,0,0,@upbCustomerGUID,@sUsage,@sYarnInfo\n" +
+                ",0,0,@nYarnLength,@sMaterialTypeName,@sPatternNo,@sDtlQtyList\n" +
+                ",@sProductWidth,@sProductGMWT,@sFinishingMethod,@sShelfNo,0,0\n" +
+                "\n" +
+                ",@nInLength,@nInWeight,@sWeightUnit,0,0,0\n" +
+                ",0,0,0,0,0,0\n" +
+                ",0,0,0,0,0,0\n" +
+                ",@sCustomerSpecification,@nInNetQty,0)";
+    }
+
+    /**
+     * 根据订单查询
+     * @param params
+     * @return
+     * @throws SQLException
+     */
+    public Map getInStoreInfo(Map params) throws SQLException, ClassNotFoundException {
+        ResultSet rs = JDBCUtils.queryData(getInStoreInfoSql(), "%"+params.get("orderNo")+"%");
+        Map map = null;
+        while(rs.next()){
+            map = getMapResltByResultSet(rs,params);
+        }
+//        return (List) getListByMap(map,params.get("location"),params.get("shelfNo"));
+        return map;
+    }
+
+    private Map getMapResltByResultSet(ResultSet rs,Map params) throws SQLException {
         Map map = new HashMap<String,Object>();
-        map.put("ummInHdrGUID",rs.getString("ummInHdrGUID"));
+        map.put("ummInHdrGUID",params.get("ummInHdrGUID"));
         map.put("ummMaterialGUID",rs.getString("ummMaterialGUID"));
         map.put("utmColorGUID",rs.getString("utmColorGUID"));
         map.put("usdOrderLotGUID",rs.getString("usdOrderLotGUID"));
@@ -46,18 +270,15 @@ public class InOrderDao {
 
         map.put("sCardNo",rs.getString("sCardNo"));
         map.put("sGrade",rs.getString("sGrade"));
-        //架位
-        map.put("sLocation","架位");
-        map.put("nInQty",rs.getString("nInQty"));
-        map.put("nInGrossQty",rs.getString("nInGrossQty"));
+        map.put("sLocation",params.get("location")); //架位
+        map.put("nInQty",rs.getBigDecimal("nInQty"));
+        map.put("nInGrossQty",rs.getBigDecimal("nInGrossQty"));
         map.put("sUnit",rs.getString("sWeightUnit"));
 
-        map.put("nInPkgQty",rs.getString("nInPkgQty"));
-        map.put("nInPkgUnitQty",rs.getString("nInPkgUnitQty"));
-        map.put("nInPkgExQty",rs.getString("nInPkgExQty")); //数据对不上
-        map.put("nIniPrice",rs.getString("nIniPrice"));
-        map.put("nACPrice",0);
-        map.put("nAmount",0);
+        map.put("nInPkgQty",rs.getBigDecimal("nInPkgQty"));
+        map.put("nInPkgUnitQty",rs.getBigDecimal("nInPkgUnitQty"));
+        map.put("nInPkgExQty",rs.getBigDecimal("nInPkgExQty")); //数据对不上
+        map.put("nIniPrice",rs.getBigDecimal("nIniPrice"));
 
         map.put("sOrderNo",rs.getString("sOrderNo"));
         map.put("sOrderColorNo",rs.getString("sOrderColorNo"));
@@ -65,13 +286,16 @@ public class InOrderDao {
 
         map.put("sCustomerMaterialNo",rs.getString("sCustomerMaterialNo"));
         map.put("sRemark",rs.getString("sRemark"));
-        map.put("nDiff04",rs.getString("nDiff04"));
+        map.put("nDiff04",rs.getBigDecimal("nDiff04"));
+        map.put("sDiff29",rs.getString("sDiff29"));
+        map.put("sDiff01",rs.getString("sDiff01"));
 
         map.put("upbCustomerGUID",rs.getString("upbCustomerGUID"));
         map.put("sUsage",rs.getString("sUsage"));
         map.put("sYarnInfo",rs.getString("sYarnInfo"));
 
-        map.put("nYarnLength",rs.getString("nYarnLength"));
+
+        map.put("nYarnLength",rs.getBigDecimal("nYarnLength"));
         map.put("sMaterialTypeName",rs.getString("sMaterialTypeName"));
         map.put("sPatternNo",rs.getString("sPatternNo"));
         map.put("sDtlQtyList",rs.getString("sDtlQtyList"));
@@ -79,21 +303,20 @@ public class InOrderDao {
         map.put("sProductWidth",rs.getString("sProductWidth"));
         map.put("sProductGMWT",rs.getString("sProductGMWT"));
         map.put("sFinishingMethod",rs.getString("sFinishingMethod"));
-        map.put("nInRawQty",rs.getString("sDtlQtyList"));
+        map.put("sShelfNo",params.get("shelfNo"));
 
-        map.put("nInLength",rs.getString("nInLength"));
-        map.put("nInWeight",rs.getString("nInWeight"));
+        map.put("nInLength",rs.getBigDecimal("nInLength"));
+        map.put("nInWeight",rs.getBigDecimal("nInWeight"));
         map.put("sWeightUnit",rs.getString("sWeightUnit"));
-        map.put("nInRawQty",rs.getString("sDtlQtyList"));
 
+        map.put("nInNetQty,",rs.getBigDecimal("nInNetQty"));
         map.put("sCustomerSpecification",rs.getString("sCustomerSpecification"));
-        map.put("nInNetQty,",rs.getString("nInNetQty,"));
         return map;
     }
 
     // 根据入库订单id更新入库信息信息
-    public int modifyInStore(String inStoreNo){
-        return jdbcUtils.executeSql(updateInStoreSql(),inStoreNo);
+    public int modifyInStore(String inStoreNo) throws SQLException, ClassNotFoundException {
+        return JDBCUtils.executeSql(updateInStoreSql(),inStoreNo);
     }
 
     /**
@@ -101,13 +324,13 @@ public class InOrderDao {
      * @param map
      * @return
      */
-    public int insertInStore(Map map){
-        return jdbcUtils.executeSql(getInStoreSql(), map.get("inStoreNo"), map.get("loginName"),map.get("loginName"));
+    public int insertInStore(Map map) throws SQLException, ClassNotFoundException {
+        return JDBCUtils.executeSql(getInStoreSql(), map.get("inStoreNo"), map.get("loginName"),map.get("loginName"));
     }
 
     //查询所有带入仓的订单
-    public ArrayList<Map> findAllPendingOrder() throws SQLException {
-        ResultSet rs = jdbcUtils.queryData(getPendingOrderSql(""), null);
+    public ArrayList<Map> findAllPendingOrder() throws SQLException, ClassNotFoundException {
+        ResultSet rs = JDBCUtils.queryData(getPendingOrderSql(""), null);
 
         ArrayList<Map> list = new ArrayList<>();
 
@@ -122,7 +345,7 @@ public class InOrderDao {
         }
 
         try {
-            jdbcUtils.close();
+            JDBCUtils.close();
         } catch (SQLException e) {
             e.printStackTrace();
         }
@@ -130,19 +353,19 @@ public class InOrderDao {
     }
 
     //根据订单号查询所有的条码信息
-    public List<Map> findInOrderDetailByOrderNo(String orderNo) throws SQLException {
-        ResultSet rs = jdbcUtils.queryData(getInOrderDetailByOrderNoSql(), orderNo);
+    public List<Map> findInOrderDetailByOrderNo(String orderNo) throws SQLException, ClassNotFoundException {
+        ResultSet rs = JDBCUtils.queryData(getInOrderDetailByOrderNoSql(), orderNo);
         return getInOrderDetailResultByResultSet(rs);
     }
 
     //根据缸号查询所有条码信息
-    public List findWarehouseReceiptByCardNo(String cardNo) throws SQLException {
-        ResultSet rs = jdbcUtils.queryData(getInOrderDetailByCardNoSql(), cardNo);
+    public List findWarehouseReceiptByCardNo(String cardNo) throws SQLException, ClassNotFoundException {
+        ResultSet rs = JDBCUtils.queryData(getInOrderDetailByCardNoSql(), cardNo);
         return getInOrderDetailResultByResultSet(rs);
     }
 
     //根据条码号查询入仓信息
-    public List findWarehouseReceiptByBarCode(String barCode) throws SQLException {
+    public List findWarehouseReceiptByBarCode(String barCode) throws SQLException, ClassNotFoundException {
         //根据条码号查询订单号
         String orderNo = getCardNoByBarCode(barCode);
         if(StringUtils.isEmpty(orderNo)){
@@ -152,11 +375,11 @@ public class InOrderDao {
     }
 
     // 生成入库单号
-    public String getInStoreNo() throws SQLException {
+    public String getInStoreNo() throws SQLException, ClassNotFoundException {
         String sql = "DECLARE @sNewNoteNo VARCHAR(50)\n" +
                 "EXEC dbo.sppbGenerateNoteNo N'INSTORENO', N'G02,I,,CZ,200912,T,2009', 1, @sNewNoteNo OUTPUT \n" +
                 "SELECT @sNewNoteNo as sNewNoteNo";
-        ResultSet rs = jdbcUtils.queryData(sql, null);
+        ResultSet rs = JDBCUtils.queryData(sql, null);
         String inStoreNo = "";
         while(rs.next()){
             inStoreNo = rs.getString("sNewNoteNo");
@@ -186,7 +409,7 @@ public class InOrderDao {
             list.add(map);
         }
         try {
-            jdbcUtils.close();
+            JDBCUtils.close();
         } catch (SQLException e) {
             e.printStackTrace();
         }
@@ -215,14 +438,14 @@ public class InOrderDao {
     }
 
     //根据条码查询订单号
-    private String getCardNoByBarCode(String barCode) throws SQLException {
+    private String getCardNoByBarCode(String barCode) throws SQLException, ClassNotFoundException {
         String orderNo = "";
-        ResultSet resultSet = jdbcUtils.queryData(getOrderNoByBarCodeSql(), barCode);
+        ResultSet resultSet = JDBCUtils.queryData(getOrderNoByBarCodeSql(), barCode);
         while(resultSet.next()){
             orderNo = resultSet.getString("sStoreInNo");
         }
         try {
-            jdbcUtils.close();
+            JDBCUtils.close();
         } catch (SQLException e) {
             e.printStackTrace();
         }
@@ -344,10 +567,7 @@ public class InOrderDao {
 
     //更新入库订单信息sql
     private String updateInStoreSql(){
-        return "DECLARE @ummInHdrGUID UNIQUEIDENTIFIER, @immStoreInTypeID TINYINT\n" +
-                "SELECT @ummInHdrGUID=uGUID\n" +
-                "FROM dbo.mmSTInHdr\n" +
-                "WHERE sStoreInNo = ?\n" +
+        return "DECLARE @ummInHdrGUID UNIQUEIDENTIFIER = ?, @immStoreInTypeID TINYINT\n" +
                 "\n" +
                 "-- 根据入库id，查询入库类型id\n" +
                 "SELECT @immStoreInTypeID=A.immStoreInTypeID\n" +
@@ -391,13 +611,14 @@ public class InOrderDao {
     }
 
     //根据订单号查询入库信息
-    private String getInStoreIfnoSql(){
+    private String getInStoreInfoSql(){
         return "-- 根据缸号查询入仓信息 详细版本\n" +
                 "\n" +
                 "IF OBJECT_ID('TEMPDB..#Temp') IS NOT NULL DROP TABLE #Temp --判断是否存在表，存在删除\n" +
                 "\n" +
                 "SELECT TOP 50\n" +
                 "bSelected=CAST(0 AS BIT),\n" +
+                "L.nInNetQty as [nInNetQty],\n" +
                 "C.[sStoreInNo] as [store_in_no], --订单号\n" +
                 "L.sCardNo, --缸号\n" +
                 "L.sColorNo, --色号\n" +
@@ -408,9 +629,8 @@ public class InOrderDao {
                 "L.nInWeight, -- 入仓重量\n" +
                 "L.nInLength,\n" +
                 "L.nInQty, --入库数量\n" +
-                "L.nIniPrice,, \n" +
+                "L.nIniPrice, \n" +
                 "L.nInPkgExQty,\n" +
-                "L.nInNetQty,\n" +
                 "L.nInGrossQty, \n" +
                 "--L.nInRawQty,\n" +
                 "sWeightUnit=L.sUnit, --重量单位\n" +
@@ -520,5 +740,70 @@ public class InOrderDao {
                 "\n" +
                 "-- 删除临时表\n" +
                 "IF OBJECT_ID('TEMPDB..#Temp') IS NOT NULL DROP TABLE #Temp\n";
+    }
+
+    public String inStoreSql(){
+        return "";
+    }
+
+    public List getListByMap(Map map, Object location, Object shelfNo){
+        List list = new ArrayList();
+        list.add(map.get("ummInHdrGUID"));
+        list.add(map.get("ummMaterialGUID"));
+        list.add(map.get("utmColorGUID"));
+        list.add(map.get("usdOrderLotGUID"));
+        list.add(map.get("uRefDtlGUID"));
+
+        list.add(map.get("sMaterialNo"));
+        list.add(map.get("sMaterialName"));
+        list.add(map.get("sComponent"));
+        list.add(map.get("sColorNo"));
+        list.add(map.get("sColorName"));
+        list.add(map.get("sMaterialLot"));
+
+        list.add(map.get("sCardNo"));
+        list.add(map.get("sGrade"));
+        list.add(location);
+        list.add(map.get("nInQty"));
+        list.add(map.get("nInGrossQty"));
+        list.add(map.get("sUnit"));
+
+        list.add(map.get("nInPkgQty"));
+        list.add(map.get("nInPkgUnitQty"));
+        list.add(map.get("nInPkgExQty"));
+        list.add(map.get("nIniPrice"));
+
+        list.add(map.get("sOrderNo"));
+        list.add(map.get("sOrderColorNo"));
+        list.add(map.get("sCustomerOrderNo"));
+
+        list.add(map.get("sCustomerMaterialNo"));
+        list.add(map.get("sRemark"));
+        list.add(map.get("sDiff01"));
+        list.add(map.get("sDiff29"));
+
+        list.add(map.get("nDiff04"));
+
+        list.add(map.get("upbCustomerGUID"));
+        list.add(map.get("sUsage"));
+        list.add(map.get("sYarnInfo"));
+
+        list.add(map.get("nYarnLength"));
+        list.add(map.get("sMaterialTypeName"));
+        list.add(map.get("sPatternNo"));
+        list.add(map.get("sDtlQtyList"));
+
+        list.add(map.get("sProductWidth"));
+        list.add(map.get("sProductGMWT"));
+        list.add(map.get("sFinishingMethod"));
+        list.add(shelfNo);
+
+        list.add(map.get("nInLength"));
+        list.add(map.get("nInWeight"));
+        list.add(map.get("sWeightUnit"));
+
+        list.add(map.get("sCustomerSpecification"));
+        list.add(map.get("nInNetQty"));
+        return list;
     }
 }

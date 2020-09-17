@@ -1,8 +1,6 @@
 package com.tpy.product_warehouse.controller;
 
-import com.tpy.product_warehouse.api.ResponseResult;
 import com.tpy.product_warehouse.utils.JDBCUtils;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseBody;
@@ -19,16 +17,40 @@ import java.sql.SQLException;
 @RequestMapping("test")
 public class HelloController {
 
-    @Autowired
-    private JDBCUtils jdbcUtils;
+
+    @GetMapping("insertQuery")
+    public String insertQuery() throws SQLException, ClassNotFoundException {
+        ResultSet rs = JDBCUtils.queryData("declare @value varchar(20) = '姓名'\n" +
+                "INSERT INTO t_user VALUES(@value,21)\n" +
+                "SELECT @value as name",null);
+        String name = null;
+        while(rs.next()){
+            name = rs.getString("name");
+        }
+        return name;
+    }
+
+    @GetMapping("uniqueidentifier")
+    public String uniqueidentifierTest() throws SQLException, ClassNotFoundException {
+        String guid = null;
+        ResultSet rs = JDBCUtils.executeQueryMap("SELECT guid FROM test1_t",null);
+        while (rs.next()) {
+            guid = rs.getString("guid");
+        }
+        JDBCUtils.close();
+
+        JDBCUtils.executeSql("INSERT INTO test2_t VALUES(?)", guid);
+        JDBCUtils.close();
+        return "成功";
+    }
+
 
     @GetMapping("say")
-    public String hello() throws SQLException {
+    public String hello() throws SQLException, ClassNotFoundException {
 
-        ResultSet rs = jdbcUtils.executeQueryMap("SELECT TOP 1 * FROM dbo.test", null);
+        ResultSet rs = JDBCUtils.executeQueryMap("SELECT TOP 1 * FROM dbo.test", null);
         while (rs.next()) {
                 String color_no = rs.getString("sSql");
-                System.out.println("===="+color_no);
             }
         return "成功";
     }
