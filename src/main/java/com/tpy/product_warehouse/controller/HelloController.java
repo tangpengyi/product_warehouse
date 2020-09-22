@@ -1,21 +1,47 @@
 package com.tpy.product_warehouse.controller;
 
+import com.tpy.product_warehouse.dao.InOrderDao;
 import com.tpy.product_warehouse.utils.JDBCUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.RestController;
 
+import javax.annotation.Resource;
 import javax.servlet.ServletOutputStream;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.*;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("test")
 public class HelloController {
+
+    @Resource
+    private InOrderDao inOrderDao;
+
+    @GetMapping("getNInNetQtyByBarCodes")
+    public Map getNInNetQtyByBarCodes() throws SQLException, ClassNotFoundException {
+        List list = new ArrayList();
+        list.add("CF200823067001");
+        list.add("CF200823067002");
+        return inOrderDao.getNInNetQtyByBarCodes(list);
+    }
+
+    @GetMapping("inStoreProcedure")
+    public int inStoreProcedure() throws SQLException, ClassNotFoundException {
+        return 0;
+    }
+
+    @GetMapping("getGUID")
+    public String getGUID() throws SQLException, ClassNotFoundException {
+        return inOrderDao.getGUID();
+    }
 
 
     @GetMapping("insertQuery")
@@ -90,6 +116,28 @@ public class HelloController {
         } catch (Exception e) {
             e.printStackTrace();
         }
+    }
+
+    public static void main(String[] args) {
+        List list = new ArrayList();
+        list.add("1");
+        list.add("2");
+        list.add("3");
+        System.out.println(getNInNetQtyByBarCodes(list));
+    }
+
+    public static String getNInNetQtyByBarCodes(List barCodes){
+
+        StringBuffer param = new StringBuffer();
+        int count = 0;
+        for(Object barCode : barCodes){
+            count ++;
+            param.append(barCode);
+            if(barCodes.size() != count){
+                param.append(",'");
+            }
+        }
+        return param.toString();
     }
 
 }

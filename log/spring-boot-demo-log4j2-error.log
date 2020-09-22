@@ -1,8 +1,8 @@
-[2020-09-15 14:05:24.244] [ERROR] [restartedMain] [org.springframework.boot.SpringApplication.reportFailure(SpringApplication.java:826)] - Application run failed
-org.springframework.beans.factory.UnsatisfiedDependencyException: Error creating bean with name 'documentationPluginsBootstrapper' defined in URL [jar:file:/C:/Users/86131/.m2/repository/io/springfox/springfox-spring-web/2.9.2/springfox-spring-web-2.9.2.jar!/springfox/documentation/spring/web/plugins/DocumentationPluginsBootstrapper.class]: Unsatisfied dependency expressed through constructor parameter 1; nested exception is org.springframework.beans.factory.UnsatisfiedDependencyException: Error creating bean with name 'webMvcRequestHandlerProvider' defined in URL [jar:file:/C:/Users/86131/.m2/repository/io/springfox/springfox-spring-web/2.9.2/springfox-spring-web-2.9.2.jar!/springfox/documentation/spring/web/plugins/WebMvcRequestHandlerProvider.class]: Unsatisfied dependency expressed through constructor parameter 1; nested exception is org.springframework.beans.factory.BeanCreationException: Error creating bean with name 'requestMappingHandlerMapping' defined in class path resource [org/springframework/boot/autoconfigure/web/servlet/WebMvcAutoConfiguration$EnableWebMvcConfiguration.class]: Invocation of init method failed; nested exception is java.lang.IllegalStateException: Ambiguous mapping. Cannot map 'storeInController' method 
-com.tpy.product_warehouse.controller.StoreInController#findPendingOrderByNo(Integer, String)
-to {GET /product_warehouse/in_order_detail}: There is already 'storeInController' bean method
-com.tpy.product_warehouse.controller.StoreInController#findInOrderDetailByOrderNo(String) mapped.
+[2020-09-19 15:40:17.518] [ERROR] [restartedMain] [org.springframework.boot.SpringApplication.reportFailure(SpringApplication.java:826)] - Application run failed
+org.springframework.beans.factory.UnsatisfiedDependencyException: Error creating bean with name 'documentationPluginsBootstrapper' defined in URL [jar:file:/C:/Users/86131/.m2/repository/io/springfox/springfox-spring-web/2.9.2/springfox-spring-web-2.9.2.jar!/springfox/documentation/spring/web/plugins/DocumentationPluginsBootstrapper.class]: Unsatisfied dependency expressed through constructor parameter 1; nested exception is org.springframework.beans.factory.UnsatisfiedDependencyException: Error creating bean with name 'webMvcRequestHandlerProvider' defined in URL [jar:file:/C:/Users/86131/.m2/repository/io/springfox/springfox-spring-web/2.9.2/springfox-spring-web-2.9.2.jar!/springfox/documentation/spring/web/plugins/WebMvcRequestHandlerProvider.class]: Unsatisfied dependency expressed through constructor parameter 1; nested exception is org.springframework.beans.factory.BeanCreationException: Error creating bean with name 'requestMappingHandlerMapping' defined in class path resource [org/springframework/boot/autoconfigure/web/servlet/WebMvcAutoConfiguration$EnableWebMvcConfiguration.class]: Invocation of init method failed; nested exception is java.lang.IllegalStateException: Ambiguous mapping. Cannot map 'storeOutController' method 
+com.tpy.product_warehouse.controller.StoreOutController#getOutStoreInfo(String)
+to {GET /product_warehouse/store_out/getOutOrderInfo}: There is already 'storeOutController' bean method
+com.tpy.product_warehouse.controller.StoreOutController#getOutStoreBarCode(String) mapped.
 	at org.springframework.beans.factory.support.ConstructorResolver.createArgumentArray(ConstructorResolver.java:798) ~[spring-beans-5.2.2.RELEASE.jar:5.2.2.RELEASE]
 	at org.springframework.beans.factory.support.ConstructorResolver.autowireConstructor(ConstructorResolver.java:228) ~[spring-beans-5.2.2.RELEASE.jar:5.2.2.RELEASE]
 	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.autowireConstructor(AbstractAutowireCapableBeanFactory.java:1358) ~[spring-beans-5.2.2.RELEASE.jar:5.2.2.RELEASE]
@@ -28,10 +28,10 @@ com.tpy.product_warehouse.controller.StoreInController#findInOrderDetailByOrderN
 	at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43) ~[?:1.8.0_261]
 	at java.lang.reflect.Method.invoke(Method.java:498) ~[?:1.8.0_261]
 	at org.springframework.boot.devtools.restart.RestartLauncher.run(RestartLauncher.java:49) [spring-boot-devtools-2.2.2.RELEASE.jar:2.2.2.RELEASE]
-Caused by: org.springframework.beans.factory.UnsatisfiedDependencyException: Error creating bean with name 'webMvcRequestHandlerProvider' defined in URL [jar:file:/C:/Users/86131/.m2/repository/io/springfox/springfox-spring-web/2.9.2/springfox-spring-web-2.9.2.jar!/springfox/documentation/spring/web/plugins/WebMvcRequestHandlerProvider.class]: Unsatisfied dependency expressed through constructor parameter 1; nested exception is org.springframework.beans.factory.BeanCreationException: Error creating bean with name 'requestMappingHandlerMapping' defined in class path resource [org/springframework/boot/autoconfigure/web/servlet/WebMvcAutoConfiguration$EnableWebMvcConfiguration.class]: Invocation of init method failed; nested exception is java.lang.IllegalStateException: Ambiguous mapping. Cannot map 'storeInController' method 
-com.tpy.product_warehouse.controller.StoreInController#findPendingOrderByNo(Integer, String)
-to {GET /product_warehouse/in_order_detail}: There is already 'storeInController' bean method
-com.tpy.product_warehouse.controller.StoreInController#findInOrderDetailByOrderNo(String) mapped.
+Caused by: org.springframework.beans.factory.UnsatisfiedDependencyException: Error creating bean with name 'webMvcRequestHandlerProvider' defined in URL [jar:file:/C:/Users/86131/.m2/repository/io/springfox/springfox-spring-web/2.9.2/springfox-spring-web-2.9.2.jar!/springfox/documentation/spring/web/plugins/WebMvcRequestHandlerProvider.class]: Unsatisfied dependency expressed through constructor parameter 1; nested exception is org.springframework.beans.factory.BeanCreationException: Error creating bean with name 'requestMappingHandlerMapping' defined in class path resource [org/springframework/boot/autoconfigure/web/servlet/WebMvcAutoConfiguration$EnableWebMvcConfiguration.class]: Invocation of init method failed; nested exception is java.lang.IllegalStateException: Ambiguous mapping. Cannot map 'storeOutController' method 
+com.tpy.product_warehouse.controller.StoreOutController#getOutStoreInfo(String)
+to {GET /product_warehouse/store_out/getOutOrderInfo}: There is already 'storeOutController' bean method
+com.tpy.product_warehouse.controller.StoreOutController#getOutStoreBarCode(String) mapped.
 	at org.springframework.beans.factory.support.ConstructorResolver.createArgumentArray(ConstructorResolver.java:798) ~[spring-beans-5.2.2.RELEASE.jar:5.2.2.RELEASE]
 	at org.springframework.beans.factory.support.ConstructorResolver.autowireConstructor(ConstructorResolver.java:228) ~[spring-beans-5.2.2.RELEASE.jar:5.2.2.RELEASE]
 	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.autowireConstructor(AbstractAutowireCapableBeanFactory.java:1358) ~[spring-beans-5.2.2.RELEASE.jar:5.2.2.RELEASE]
@@ -51,10 +51,10 @@ com.tpy.product_warehouse.controller.StoreInController#findInOrderDetailByOrderN
 	at org.springframework.beans.factory.support.ConstructorResolver.resolveAutowiredArgument(ConstructorResolver.java:885) ~[spring-beans-5.2.2.RELEASE.jar:5.2.2.RELEASE]
 	at org.springframework.beans.factory.support.ConstructorResolver.createArgumentArray(ConstructorResolver.java:789) ~[spring-beans-5.2.2.RELEASE.jar:5.2.2.RELEASE]
 	... 24 more
-Caused by: org.springframework.beans.factory.BeanCreationException: Error creating bean with name 'requestMappingHandlerMapping' defined in class path resource [org/springframework/boot/autoconfigure/web/servlet/WebMvcAutoConfiguration$EnableWebMvcConfiguration.class]: Invocation of init method failed; nested exception is java.lang.IllegalStateException: Ambiguous mapping. Cannot map 'storeInController' method 
-com.tpy.product_warehouse.controller.StoreInController#findPendingOrderByNo(Integer, String)
-to {GET /product_warehouse/in_order_detail}: There is already 'storeInController' bean method
-com.tpy.product_warehouse.controller.StoreInController#findInOrderDetailByOrderNo(String) mapped.
+Caused by: org.springframework.beans.factory.BeanCreationException: Error creating bean with name 'requestMappingHandlerMapping' defined in class path resource [org/springframework/boot/autoconfigure/web/servlet/WebMvcAutoConfiguration$EnableWebMvcConfiguration.class]: Invocation of init method failed; nested exception is java.lang.IllegalStateException: Ambiguous mapping. Cannot map 'storeOutController' method 
+com.tpy.product_warehouse.controller.StoreOutController#getOutStoreInfo(String)
+to {GET /product_warehouse/store_out/getOutOrderInfo}: There is already 'storeOutController' bean method
+com.tpy.product_warehouse.controller.StoreOutController#getOutStoreBarCode(String) mapped.
 	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.initializeBean(AbstractAutowireCapableBeanFactory.java:1796) ~[spring-beans-5.2.2.RELEASE.jar:5.2.2.RELEASE]
 	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.doCreateBean(AbstractAutowireCapableBeanFactory.java:595) ~[spring-beans-5.2.2.RELEASE.jar:5.2.2.RELEASE]
 	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.createBean(AbstractAutowireCapableBeanFactory.java:517) ~[spring-beans-5.2.2.RELEASE.jar:5.2.2.RELEASE]
@@ -88,10 +88,10 @@ com.tpy.product_warehouse.controller.StoreInController#findInOrderDetailByOrderN
 	at org.springframework.beans.factory.support.ConstructorResolver.resolveAutowiredArgument(ConstructorResolver.java:885) ~[spring-beans-5.2.2.RELEASE.jar:5.2.2.RELEASE]
 	at org.springframework.beans.factory.support.ConstructorResolver.createArgumentArray(ConstructorResolver.java:789) ~[spring-beans-5.2.2.RELEASE.jar:5.2.2.RELEASE]
 	... 24 more
-Caused by: java.lang.IllegalStateException: Ambiguous mapping. Cannot map 'storeInController' method 
-com.tpy.product_warehouse.controller.StoreInController#findPendingOrderByNo(Integer, String)
-to {GET /product_warehouse/in_order_detail}: There is already 'storeInController' bean method
-com.tpy.product_warehouse.controller.StoreInController#findInOrderDetailByOrderNo(String) mapped.
+Caused by: java.lang.IllegalStateException: Ambiguous mapping. Cannot map 'storeOutController' method 
+com.tpy.product_warehouse.controller.StoreOutController#getOutStoreInfo(String)
+to {GET /product_warehouse/store_out/getOutOrderInfo}: There is already 'storeOutController' bean method
+com.tpy.product_warehouse.controller.StoreOutController#getOutStoreBarCode(String) mapped.
 	at org.springframework.web.servlet.handler.AbstractHandlerMethodMapping$MappingRegistry.validateMethodMapping(AbstractHandlerMethodMapping.java:633) ~[spring-webmvc-5.2.2.RELEASE.jar:5.2.2.RELEASE]
 	at org.springframework.web.servlet.handler.AbstractHandlerMethodMapping$MappingRegistry.register(AbstractHandlerMethodMapping.java:600) ~[spring-webmvc-5.2.2.RELEASE.jar:5.2.2.RELEASE]
 	at org.springframework.web.servlet.handler.AbstractHandlerMethodMapping.registerHandlerMethod(AbstractHandlerMethodMapping.java:318) ~[spring-webmvc-5.2.2.RELEASE.jar:5.2.2.RELEASE]

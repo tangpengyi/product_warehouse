@@ -10,11 +10,12 @@ import org.springframework.web.bind.annotation.*;
 
 import javax.annotation.Resource;
 import java.sql.SQLException;
+import java.util.List;
 import java.util.Map;
 
 @Api(tags = "成品入仓")
 @RestController
-@RequestMapping("product_warehouse")
+@RequestMapping("product_warehouse/store_in")
 public class StoreInController {
 
     @Resource
@@ -27,15 +28,14 @@ public class StoreInController {
     }
 
     @ApiOperation(value="查询入仓单布号（条码）明细", notes = "根据订单号查询")
-    @ApiImplicitParam(name = "orderNo", value = "订单号",paramType = "query",required = true,dataType = "String")
-    @GetMapping("in_order_detail")
-    public ResponseResult findInOrderDetailByOrderNo(String orderNo) throws SQLException {
-        return inOrderService.findInOrderDetailByOrderNo(orderNo);
+    @PostMapping("in_order_detail")
+    public ResponseResult findInOrderDetailByOrderNo(@RequestBody List<Object> orderNos) throws SQLException {
+        return inOrderService.findInOrderDetailByOrderNo(orderNos);
     }
 
     @ApiOperation(value="根据布号或订单号或者缸号查询入仓信息")
     @ApiImplicitParams({
-            @ApiImplicitParam(name = "paramStype", value = "参数类型",paramType = "query",required = true,dataType = "Integer"),
+            @ApiImplicitParam(name = "paramStype", value = "参数类型",paramType = "query",required = true,dataType = "int"),
             @ApiImplicitParam(name = "param", value = "参数",paramType = "query",required = true,dataType = "String")
     })
     @GetMapping("in_order_detail_params")
@@ -46,7 +46,17 @@ public class StoreInController {
     @ApiOperation(value="保存入仓信息")
     @PostMapping("save_in_order")
     public ResponseResult addInStore(@RequestBody Map<String,Object> params) throws SQLException, ClassNotFoundException {
-        params.put("loginName","唐鹏翼");
         return inOrderService.addInStore(params);
+    }
+
+    @ApiOperation(value="根据订单号查询订单信息")
+    @ApiImplicitParams({
+            @ApiImplicitParam(name = "paramStype", value = "参数类型",paramType = "query",required = true,dataType = "int"),
+            @ApiImplicitParam(name = "param", value = "参数",paramType = "query",required = true,dataType = "String")
+    })
+    @GetMapping("find_in_order")
+    public ResponseResult getStoreInOrder(String param,int paramStype) throws SQLException, ClassNotFoundException {
+
+        return inOrderService.getStoreInOrderByParam(param,paramStype);
     }
 }

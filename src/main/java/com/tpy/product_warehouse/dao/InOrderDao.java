@@ -1,10 +1,12 @@
 package com.tpy.product_warehouse.dao;
 
 import com.tpy.product_warehouse.utils.JDBCUtils;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
+import java.math.BigDecimal;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -13,7 +15,191 @@ import java.util.List;
 import java.util.Map;
 
 @Component
+@Slf4j
 public class InOrderDao {
+
+    // 根据条码号查询入仓信息
+    public List<Map> getOrderNoByBarCode(String barCode) throws SQLException, ClassNotFoundException {
+        ResultSet resultSet = JDBCUtils.queryData(getOrderNoByBarCodeSql(), barCode);
+        String sStoreInNo = null;
+        while(resultSet.next()){
+            sStoreInNo = resultSet.getString("sStoreInNo");
+        }
+        return getStoreInOrderByOrderNo(sStoreInNo);
+    }
+
+
+    //根据缸号查询订单
+    public List<Map> getOrderByCardNo(String cardNo) throws SQLException, ClassNotFoundException {
+        ResultSet resultSet = JDBCUtils.queryData(getOrderNoByCardNoSql(), cardNo);
+        List<Map> list = new ArrayList<>();
+        while(resultSet.next()){
+            String orderNo = resultSet.getString("store_in_no");
+            list.addAll(getStoreInOrderByOrderNo(orderNo));
+        }
+        return list;
+    }
+
+    //根据缸号查询订单
+    public String getOrderNoByCardNoSql(){
+        return "select h.[sStoreInNo] as [store_in_no]\n" +
+                "\tfrom [HSWeaveDyeingERP_TEST].[dbo].[mmSTInHdr] h with(nolock) \n" +
+                "\tjoin [HSWeaveDyeingERP_TEST].[dbo].[mmSTInDtl] d with(nolock) on h.[uGUID] = d.[ummInHdrGUID]\n" +
+                "\tjoin [HSWeaveDyeingERP_TEST].[dbo].[mmBarCodeIn] bi with(nolock) on d.uGUID = bi.[ummInDtlGUID]\t\n" +
+                "\tjoin [HSWeaveDyeingERP_TEST].[dbo].[mmStore] s with(nolock) on h.[ummStoreGUID] = s.[uGUID]\t\n" +
+                "\tWHERE d.[sCardNo] = ? and s.[sStoreName] = '质检中转仓'\n" +
+                "\tGROUP BY h.[sStoreInNo]";
+    }
+
+    //根据订单号查询订单信息
+    public List<Map> getStoreInOrderByOrderNo(String OrderNo) throws SQLException, ClassNotFoundException {
+
+        ResultSet resultSet = JDBCUtils.queryData(getWeightByOrderNoSql(), OrderNo);
+        String weight = null;
+        while(resultSet.next()){
+            weight = resultSet.getString("weight");
+        }
+
+        ResultSet rs = JDBCUtils.queryData(getStoreInOrderSql(), OrderNo);
+        List list = new ArrayList();
+        while(rs.next()){{
+            Map map = new HashMap();
+            map.put("order_no",rs.getString("store_in_no"));
+            map.put("time",rs.getString("store_in_time"));
+            map.put("material_no",rs.getString("material_no"));
+            map.put("quantity",rs.getString("quantity"));
+            map.put("weight",weight);
+            map.put("selected",false);
+            list.add(map);
+        }}
+
+        return list;
+    }
+
+    private String getWeightByOrderNoSql(){
+        return "declare @order_no nvarchar(50) = ?\n" +
+                "\n" +
+                "select SUM(bi.[nQty]) AS [weight]\n" +
+                "\tfrom [HSWeaveDyeingERP_TEST].[dbo].[Split](@order_no, ',') o\n" +
+                "\tjoin [HSWeaveDyeingERP_TEST].[dbo].[mmSTInHdr] h with(nolock) on o.[Value] = h.[sStoreInNo]\n" +
+                "\tjoin [HSWeaveDyeingERP_TEST].[dbo].[mmSTInDtl] d with(nolock) on h.[uGUID] = d.[ummInHdrGUID]\n" +
+                "\tjoin [HSWeaveDyeingERP_TEST].[dbo].[mmBarCodeIn] bi with(nolock) on d.uGUID = bi.[ummInDtlGUID]\t\n" +
+                "\tGROUP BY h.[sStoreInNo]";
+    }
+
+    private String getStoreInOrderSql(){
+        return "\n" +
+                "-- 获取质检中转区待入仓的订单号码\n" +
+                "set rowcount 0\n" +
+                "select d.[uGUID]\t\n" +
+                "\t, h.[sStoreInNo]\n" +
+                "\t, h.[tStoreInTime]\n" +
+                "\t, datediff(minute, h.tStoreInTime, h.[tPrintTime]) diff_minutes\n" +
+                "\t, h.[tPrintTime]\t\n" +
+                "\t, d.[sMaterialNo]\n" +
+                "\t, d.[sCardNo]\n" +
+                "\t, d.[nInPkgQty]\n" +
+                "\t, d.[nInQty]\t\n" +
+                "\t, d.[nStockPkgQty]\n" +
+                "\tinto #t1\n" +
+                "\tfrom [HSWeaveDyeingERP_TEST].[dbo].[mmSTInHdr] h with(nolock)\n" +
+                "\tjoin [HSWeaveDyeingERP_TEST].[dbo].[mmStore] s with(nolock) on h.[ummStoreGUID] = s.[uGUID]\n" +
+                "\tjoin [HSWeaveDyeingERP_TEST].[dbo].[mmSTInDtl] d with(nolock) on h.[uGUID] = d.[ummInHdrGUID]\n" +
+                "\tjoin [HSWeaveDyeingERP_TEST].[dbo].[mmStoreInType] t with(nolock) on h.[immStoreInTypeID] = t.[iID]\n" +
+                "\tWHERE h.[tStoreInTime] > dateadd(month, -1, getdate())\n" +
+                "\t\tand s.[sStoreName] = '质检中转仓'\n" +
+                "\t\tand d.[sCardNo] not like 'B[FR]%'\t\t--BF,RF开头的缸号，不允许入正品仓\n" +
+                "\t\tand [h].[iStoreInStatus] = 1\n" +
+                "\t\tAND h.[sStoreInNo] = ?  --订单号\n" +
+                "\n" +
+                "-- 取出已经入库的数量\n" +
+                "select t.[uGUID]\n" +
+                "\t, t.[sCardNo]\n" +
+                "\t, sum(d.[nInPkgQty]) as nInPkgQty\n" +
+                "\t, sum(d.[nInQty]) as nInQty\n" +
+                "\tinto #t2\n" +
+                "\tfrom [#t1] t\n" +
+                "\tjoin [HSWeaveDyeingERP_TEST].[dbo].[mmSTInDtl] d with(nolock) on t.uGUID = d.[uRefDtlGUID] and t.sCardNo = d.[sCardNo]\t\n" +
+                "\tgroup by t.[uGUID], t.[sCardNo]\n" +
+                "\n" +
+                "-- 减去已经入库的数量\n" +
+                "update t1\n" +
+                "\tset t1.nInQty = t1.nInQty - t2.[nInQty]\n" +
+                "\t, t1.nInPkgQty = t1.nInPkgQty - t2.[nInPkgQty]\n" +
+                "\tfrom #t1 t1\n" +
+                "\tjoin #t2 t2 on t1.[uGUID] = t2.[uGUID]\n" +
+                "\n" +
+                "delete from #t1 where [nInPkgQty] <= 0\n" +
+                "\n" +
+                "select [sStoreInNo] as [store_in_no]\n" +
+                "\t, isnull(CONVERT(VARCHAR(20),[tprinttime],120), [tStoreInTime]) as [store_in_time]\n" +
+                "\t, [sMaterialNo] as [material_no]\n" +
+                "\t, [nInPkgQty] as [quantity]\n" +
+                "\tfrom [#t1] \n" +
+                "\torder by [store_in_time]\n" +
+                "\n" +
+                "\n" +
+                "drop table [#t1], [#t2]\n" +
+                "\n" +
+                "\n";
+    }
+
+    public Map getNInNetQtyByBarCodes(List barCodes) throws SQLException, ClassNotFoundException {
+
+        StringBuffer param = new StringBuffer();
+        int count = 0;
+        for(Object barCode : barCodes){
+            count ++;
+            param.append("?");
+            if(barCodes.size() != count){
+                param.append(",");
+            }
+        }
+        //          入库数量    坯布数量    辅助数
+        String sql = "SELECT SUM(E.nQty) AS nInNetQty\n" +
+                "                ,sum(E.nNetQty) AS nNetQty \n" +
+                "                ,sum(E.nPkgExQty) AS nPkgExQty\n" +
+                " FROM dbo.mmSTInHdr AS C WITH(NOLOCK)\n" +
+                "           INNER JOIN dbo.mmSTInDtl AS L WITH(NOLOCK) ON C.uGUID=L.ummInHdrGUID\n" +
+                "                INNER JOIN dbo.mmBarCodeIn AS E  WITH(NOLOCK) ON L.uGUID=ummInDtlGUID\n" +
+                "                LEFT JOIN dbo.mmStore HY WITH(NOLOCK) ON HY.uGUID=C.ummStoreGUID\n" +
+                "                WHERE E.sBarCode in ("+param+")  AND HY.sStoreNo='G026'\n" +
+                "                AND (E.sBarCode NOT IN (SELECT sBarCode FROM dbo.mmBarCodeIn C \n" +
+                "                INNER JOIN dbo.mmSTInHdr D ON D.uGUID=C.ummInHdrGUID\n" +
+                "                INNER JOIN dbo.mmStore E ON D.ummStoreGUID=E.uGUID \n" +
+                "                WHERE E.sStoreNo IN ('G02','G025','G023'))\n" +
+                "                OR ISNULL(E.sStatus,'')='入退')";
+
+        ResultSet resultSet = JDBCUtils.querySqlByList(sql, barCodes);
+        Map map = new HashMap();
+        while(resultSet.next()){
+            //入库数量
+            map.put("nInNetQty",resultSet.getObject("nInNetQty"));
+            map.put("nNetQty",resultSet.getObject("nNetQty"));
+            map.put("nPkgExQty",resultSet.getObject("nPkgExQty"));
+        }
+        return map;
+    }
+
+    public int inStoreProcedure(Map map,int checkMinus,int cancel) throws SQLException, ClassNotFoundException {
+        String sql = "EXEC dbo.spmmSTStoreBarCodeIn @ummInHdrGUID = ? ,\n" +
+                "\t @ummInDtlGUIDList = ? , @sUserNo = ? ,\n" +
+                "\t  @bCheckMinus = ? , @bCancel = ?";
+        return JDBCUtils.executeSql(sql, map.get("ummInHdrGUID"),map.get("ummInDtlGUID"),map.get("userName"),checkMinus,cancel);
+    }
+
+    /**
+     * 获取GUID
+     * @return
+     */
+    public String getGUID() throws SQLException, ClassNotFoundException {
+        String uGUID = null;
+        ResultSet rs = JDBCUtils.queryData("select newId() as uGUID", null);
+        while(rs.next()){
+            uGUID = rs.getString("uGUID");
+        }
+        return uGUID;
+    }
 
     //根据入库编号查询id
     public String getStoreInGUIDByStoreInNo(String orderNo) throws SQLException, ClassNotFoundException {
@@ -97,8 +283,9 @@ public class InOrderDao {
         return JDBCUtils.executeSqlByList(insertStoreInDtlSql(), list);
     }
 
-    public String insertStoreInDtl(Map map) throws SQLException, ClassNotFoundException {
+    public int insertStoreInDtl(Map map) throws SQLException, ClassNotFoundException {
         List list = new ArrayList<Object>();
+        list.add(map.get("ummInDtlGUID"));
         list.add(map.get("ummInHdrGUID"));
         list.add(map.get("ummMaterialGUID"));
         list.add(map.get("utmColorGUID"));
@@ -106,16 +293,14 @@ public class InOrderDao {
         list.add(map.get("uRefDtlGUID"));
         list.add(map.get("upbCustomerGUID"));
 
-        ResultSet resultSet = JDBCUtils.querySqlByList(insertStoreInDtlSql2(map), list);
-        String uGUID = null;
-        while(resultSet.next()){
-            uGUID = resultSet.getString("uGUID");
-        }
-        return uGUID;
+        return JDBCUtils.executeSqlByList(insertStoreInDtlSql2(map), list);
     }
 
     private String insertStoreInDtlSql2(Map map){
-        String sql = "DECLARE @uGUID UNIQUEIDENTIFIER=NEWID(),@ummInHdrGUID UNIQUEIDENTIFIER=?,@ummMaterialGUID UNIQUEIDENTIFIER=?,@utmColorGUID UNIQUEIDENTIFIER=?\n" +
+        if(map.get("sCustomerMaterialNo") == null){
+            map.put("sCustomerMaterialNo","");
+        }
+        String sql = "DECLARE @uGUID UNIQUEIDENTIFIER=?,@ummInHdrGUID UNIQUEIDENTIFIER=?,@ummMaterialGUID UNIQUEIDENTIFIER=?,@utmColorGUID UNIQUEIDENTIFIER=?\n" +
                 ",@usdOrderLotGUID UNIQUEIDENTIFIER=?,@uRefDtlGUID UNIQUEIDENTIFIER=?,@sMaterialNo nvarchar(100)='"+map.get("sMaterialNo")+"'\n" +
                 ",@sMaterialName nvarchar(200)='"+map.get("sMaterialName")+"',@sComponent nvarchar(400)='"+map.get("sComponent")+"',@sColorNo nvarchar(100)='"+map.get("sColorNo")+"',@sColorName nvarchar(200)='"+map.get("sColorName")+"'\n" +
                 ",@sMaterialLot NVARCHAR(100)='"+map.get("sMaterialLot")+"',@sCardNo nvarchar(50)='"+map.get("sCardNo")+"',@sGrade nvarchar(20)='"+map.get("sGrade")+"',@sLocation nvarchar(50)='"+map.get("sLocation")+"'\n" +
@@ -172,8 +357,7 @@ public class InOrderDao {
                 ",@nInLength,@nInWeight,@sWeightUnit,0,0,0\n" +
                 ",0,0,0,0,0,0\n" +
                 ",0,0,0,0,0,0\n" +
-                ",@sCustomerSpecification,@nInNetQty,0)\n"+
-                "select @uGUID as uGUID";
+                ",@sCustomerSpecification,@nInNetQty,0)";
         return sql;
     }
 
@@ -249,7 +433,6 @@ public class InOrderDao {
         while(rs.next()){
             map = getMapResltByResultSet(rs,params);
         }
-//        return (List) getListByMap(map,params.get("location"),params.get("shelfNo"));
         return map;
     }
 
@@ -277,7 +460,6 @@ public class InOrderDao {
 
         map.put("nInPkgQty",rs.getBigDecimal("nInPkgQty"));
         map.put("nInPkgUnitQty",rs.getBigDecimal("nInPkgUnitQty"));
-        map.put("nInPkgExQty",rs.getBigDecimal("nInPkgExQty")); //数据对不上
         map.put("nIniPrice",rs.getBigDecimal("nIniPrice"));
 
         map.put("sOrderNo",rs.getString("sOrderNo"));
@@ -309,7 +491,6 @@ public class InOrderDao {
         map.put("nInWeight",rs.getBigDecimal("nInWeight"));
         map.put("sWeightUnit",rs.getString("sWeightUnit"));
 
-        map.put("nInNetQty,",rs.getBigDecimal("nInNetQty"));
         map.put("sCustomerSpecification",rs.getString("sCustomerSpecification"));
         return map;
     }
@@ -325,7 +506,7 @@ public class InOrderDao {
      * @return
      */
     public int insertInStore(Map map) throws SQLException, ClassNotFoundException {
-        return JDBCUtils.executeSql(getInStoreSql(), map.get("inStoreNo"), map.get("loginName"),map.get("loginName"));
+        return JDBCUtils.executeSql(getInStoreSql(), map.get("inStoreNo"), map.get("userName"),map.get("userName"));
     }
 
     //查询所有带入仓的订单
@@ -341,6 +522,7 @@ public class InOrderDao {
             map.put("material_no",rs.getObject("material_no"));
             map.put("card_no",rs.getObject("Card_no"));
             map.put("quantity",rs.getObject("quantity"));
+            map.put("selected",false);
             list.add(map);
         }
 
@@ -406,6 +588,7 @@ public class InOrderDao {
             map.put("material_no",rs.getObject("sMaterialNo"));
             map.put("material_name",rs.getObject("sMaterialName"));
             map.put("time",rs.getObject("time"));
+            map.put("scaned",false);
             list.add(map);
         }
         try {
@@ -537,7 +720,7 @@ public class InOrderDao {
                 "\torder by h.[sStoreInNo], bi.[sSeq]";
     }
 
-    //根据条码（布号）查询缸号sql
+    //根据条码（布号）查询订单号sql
     private String getOrderNoByBarCodeSql(){
         return "select h.[sStoreInNo]\n" +
                 "\tfrom [HSWeaveDyeingERP_TEST].[dbo].[mmSTInHdr] h with(nolock)\n" +
@@ -618,7 +801,6 @@ public class InOrderDao {
                 "\n" +
                 "SELECT TOP 50\n" +
                 "bSelected=CAST(0 AS BIT),\n" +
-                "L.nInNetQty as [nInNetQty],\n" +
                 "C.[sStoreInNo] as [store_in_no], --订单号\n" +
                 "L.sCardNo, --缸号\n" +
                 "L.sColorNo, --色号\n" +
@@ -630,7 +812,6 @@ public class InOrderDao {
                 "L.nInLength,\n" +
                 "L.nInQty, --入库数量\n" +
                 "L.nIniPrice, \n" +
-                "L.nInPkgExQty,\n" +
                 "L.nInGrossQty, \n" +
                 "--L.nInRawQty,\n" +
                 "sWeightUnit=L.sUnit, --重量单位\n" +
@@ -657,7 +838,7 @@ public class InOrderDao {
                 "HC.sCustomerName,\t--客户名称\n" +
                 "sOrderColorNo=D.sColorNo, --客户色号\n" +
                 "H.sCustomerOrderNo,\t--客户订单号\n" +
-                "D.sCustomerMaterialNo, --客户品号\n" +
+                "D.sCustomerMaterialNo, --老货号\n" +
                 "D.sCustomerMaterialName,\t--客户品名\n" +
                 "D.sCustomerSpecification,\t--客户规范\n" +
                 "D.sUsage,\n" +
@@ -740,10 +921,6 @@ public class InOrderDao {
                 "\n" +
                 "-- 删除临时表\n" +
                 "IF OBJECT_ID('TEMPDB..#Temp') IS NOT NULL DROP TABLE #Temp\n";
-    }
-
-    public String inStoreSql(){
-        return "";
     }
 
     public List getListByMap(Map map, Object location, Object shelfNo){

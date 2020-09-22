@@ -3,6 +3,7 @@ package com.tpy.product_warehouse.utils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 
 import java.sql.*;
 import java.util.List;
@@ -71,8 +72,10 @@ public class JDBCUtils {
         int rs = 0;
         try {
             ps = conn.prepareStatement(sSql);
-            for(int i = 1; i <= params.length; i++){
-                ps.setObject(i,params[i-1]);
+            if(!StringUtils.isEmpty(params)){
+                for(int i = 1; i <= params.length; i++){
+                    ps.setObject(i,params[i-1]);
+                }
             }
             return ps.executeUpdate();
         } catch (SQLException e) {
