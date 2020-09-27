@@ -17,5 +17,5 @@ public interface InOrderService {
 
     public ResponseResult findPendingOrderByNo(int paramStype,String param) throws SQLException;
 
-    public ResponseResult addInStore(Map map) throws SQLException, ClassNotFoundException;
+    public ResponseResult addInStore(List<Map<String,Object>> list) throws SQLException, ClassNotFoundException;
 }

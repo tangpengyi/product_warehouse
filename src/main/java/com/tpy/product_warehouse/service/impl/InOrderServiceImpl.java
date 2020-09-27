@@ -28,9 +28,9 @@ public class InOrderServiceImpl implements InOrderService {
     private InOrderDao inOrderDao;
 
     @Override
-    public ResponseResult getStoreInOrderByParam(String param,int paramStype) throws SQLException, ClassNotFoundException {
+    public ResponseResult getStoreInOrderByParam(String param, int paramStype) throws SQLException, ClassNotFoundException {
         List<Map> storeInOrders = null;
-        switch (paramStype){
+        switch (paramStype) {
             case ORDERNO_STYPE:
                 storeInOrders = inOrderDao.getStoreInOrderByOrderNo(param);
                 break;
@@ -42,7 +42,7 @@ public class InOrderServiceImpl implements InOrderService {
                 break;
         }
         JDBCUtils.close();
-        return CommonsResult.getSuccessResult("查询成功",storeInOrders);
+        return CommonsResult.getSuccessResult("查询成功", storeInOrders);
     }
 
     @Override
@@ -56,19 +56,18 @@ public class InOrderServiceImpl implements InOrderService {
             log.error("查询带入仓订单出错");
         }
         JDBCUtils.close();
-        if(pendingOrder != null){
-            return CommonsResult.getSuccessResult("查询成功",pendingOrder);
+        if (pendingOrder != null) {
+            return CommonsResult.getSuccessResult("查询成功", pendingOrder);
         }
         return CommonsResult.getFialResult("系统异常");
     }
-
 
 
     @Override
     public ResponseResult findInOrderDetailByOrderNo(List<Object> orderNos) throws SQLException {
         List<Map> result = new ArrayList<>();
         try {
-            for(Object orderNo : orderNos){
+            for (Object orderNo : orderNos) {
                 List<Map> list = inOrderDao.findInOrderDetailByOrderNo(orderNo.toString());
                 result.addAll(list);
             }
@@ -78,8 +77,8 @@ public class InOrderServiceImpl implements InOrderService {
             e.printStackTrace();
         }
         JDBCUtils.close();
-        if(result.size() != 0){
-            return CommonsResult.getSuccessResult("查询成功",result);
+        if (result.size() != 0) {
+            return CommonsResult.getSuccessResult("查询成功", result);
         }
         return CommonsResult.getFialResult("系统异常");
     }
@@ -88,7 +87,7 @@ public class InOrderServiceImpl implements InOrderService {
     public ResponseResult findPendingOrderByNo(int paramStype, String param) throws SQLException {
 
         List list = null;
-        switch (paramStype){
+        switch (paramStype) {
             case ORDERNO_STYPE:
                 try {
                     list = inOrderDao.findInOrderDetailByOrderNo(param);
@@ -120,116 +119,129 @@ public class InOrderServiceImpl implements InOrderService {
                 break;
         }
         JDBCUtils.close();
-        if(list == null){
+        if (list == null) {
             return CommonsResult.getFialResult("系统异常，查询失败");
         }
-        return CommonsResult.getSuccessResult("查询成功",list);
+        return CommonsResult.getSuccessResult("查询成功", list);
     }
 
     @Override
-    public ResponseResult addInStore(Map map) throws SQLException, ClassNotFoundException {
+    public ResponseResult addInStore(List<Map<String, Object>> list) {
 
         Connection conn = null;
-
+        String inStoreNo = null;
+        String ummInHdrGUID = null;
         try {
             conn = JDBCUtils.getConn();
-            //开启事务
             conn.setAutoCommit(false);
-
             // 1. 调用存储过程，创建入库单号
-            map.put("inStoreNo",inOrderDao.getInStoreNo());
-        } catch (Exception e) {
-            log.info(e.getMessage());
-            return CommonsResult.getFialResult("入仓失败");
+            inStoreNo = inOrderDao.getInStoreNo();
+        } catch (ClassNotFoundException e) {
+            return rollBack(conn,e);
+        } catch (SQLException e) {
+            return rollBack(conn,e);
         }
 
-        // 2. 新增入库单号 参数inStoreNo userName
-        int i = 0;
-        try {
-            i = inOrderDao.insertInStore(map);
-            //ummInHdrGUID 就是入库单id
-            map.put("ummInHdrGUID",inOrderDao.getStoreInGUIDByStoreInNo((String) map.get("inStoreNo")));
-            inOrderDao.modifyInStore((String) map.get("ummInHdrGUID"));
-        } catch (Exception e) {
+        for (Map map : list) {
+            map.put("inStoreNo", inStoreNo);
+            // 2. 新增入库单号 参数inStoreNo userName
+            int i = 0;
+            //第一个就需要创建一个入库单
             try {
-                conn.rollback();
-                JDBCUtils.close();
-            } catch (SQLException e1) {
-                e1.printStackTrace();
-            }
-        }
-        if(i == 0){
-            try {
-                conn.rollback();
-                JDBCUtils.close();
+
+                if (list.get(0) == map) {
+                    ummInHdrGUID = insertInStore(map);
+                }
+                map.put("ummInHdrGUID", ummInHdrGUID);
+
+                List barCodes = (List<String>) map.get("barCode");
+                //根据条码查询对应的条码信息
+                Map barCodeParams = inOrderDao.getNInNetQtyByBarCodes(barCodes);
+
+                // 3. 根据订单获取入仓信息，为入仓提供参数 新增入仓
+                Map params = getInStoreInfo(map, barCodeParams);
+                inOrderDao.insertStoreInDtl(params);
+
+                map.put("ummInDtlGUID", params.get("ummInDtlGUID"));
+                // 4. 调用存储过程审核订单，更新数据等信息
+                inOrderDao.inStoreProcedure(map, 0, 1);
+                // 5.获取条码信息 插入条码信息
+                for (Object barCode : barCodes) {
+                    //获取新增条码所需数据
+                    Map fabricIfnoMap = getBarCodeInfo(barCode, map);
+
+                    //条码入仓 ，入仓失败
+                    if (inOrderDao.barCodeIn(fabricIfnoMap) == 0) {
+                        new Exception("入仓失败");
+                    }
+                }
+
+                // 调用存储过程
+                inOrderDao.inStoreProcedure(map, 1, 0);
+                // 更新入库单数据
+                inOrderDao.modifyInStore((String) map.get("ummInHdrGUID"));
             } catch (SQLException e) {
-                e.printStackTrace();
+                return rollBack(conn,e);
+            } catch (ClassNotFoundException e) {
+                return rollBack(conn,e);
+            } catch (Exception e) {
+                return rollBack(conn,e);
             }
-            return CommonsResult.getFialResult("入仓失败");
         }
 
-        List barCodes = (List<String>) map.get("barCode");
-        //跟过条码查询对应的坯布数量
-        Map barCodeParams = inOrderDao.getNInNetQtyByBarCodes(barCodes);
-
-        Map params= null;
+        //提交事务
         try {
-            params = inOrderDao.getInStoreInfo(map);
-            params.put("nInQty",barCodeParams.get("nInNetQty"));
-            params.put("nInNetQty",barCodeParams.get("nNetQty"));
-            params.put("nInPkgExQty",barCodeParams.get("nPkgExQty"));
-            //获取一个GUID
-            String ummInDtlGUID = inOrderDao.getGUID();
-            map.put("ummInDtlGUID",ummInDtlGUID);
-
-
-            // 3. 根据订单获取入仓信息，为入仓提供参数 新增入仓
-            params.put("ummInDtlGUID",ummInDtlGUID);
-            inOrderDao.insertStoreInDtl(params);
-
-            // 4. 调用存储过程审核订单，更新数据等信息
-            inOrderDao.inStoreProcedure(map,0,1);
-
-            // 5.获取条码信息 插入条码信息
-            for(Object barCode : barCodes){
-                Map fabricIfnoMap = inOrderDao.findFabricIfnoByBarcode(barCode.toString());
-                if(fabricIfnoMap == null){
-                    throw new Exception("查询布号信息为null");
-                }
-                fabricIfnoMap.put("sCreator",map.get("userName"));
-                fabricIfnoMap.put("sBarCode",barCode);
-                fabricIfnoMap.put("ummInHdrGUID",map.get("ummInHdrGUID"));
-                fabricIfnoMap.put("ummInDtlGUID",ummInDtlGUID);
-                //条码入仓 ，入仓失败
-                if(inOrderDao.barCodeIn(fabricIfnoMap) == 0){
-                    conn.rollback();
-                    JDBCUtils.close();
-                    return CommonsResult.getFialResult("入仓失败");
-                }
-            }
-
-            // 调用存储过程
-            inOrderDao.inStoreProcedure(map,1,0);
-            // 更新入库单数据
-            inOrderDao.modifyInStore((String) map.get("ummInHdrGUID"));
-
-            //提交事务
             conn.commit();
             conn.setAutoCommit(true);
             JDBCUtils.close();
-
-        } catch (Exception e) {
-            try {
-                conn.rollback();
-                JDBCUtils.close();
-            } catch (SQLException e1) {
-                e1.printStackTrace();
-            }
-            log.error(e.getMessage());
-            return CommonsResult.getFialResult("入仓失败");
+        } catch (SQLException e) {
+            e.printStackTrace();
         }
-
-
         return CommonsResult.getSuccessResult("入仓成功");
     }
+
+    public String insertInStore(Map map) throws SQLException, ClassNotFoundException {
+        int isSuccess = inOrderDao.insertInStore(map);
+        //ummInHdrGUID 就是入库单id
+        String ummInHdrGUID = inOrderDao.getStoreInGUIDByStoreInNo((String) map.get("inStoreNo"));
+        inOrderDao.modifyInStore(ummInHdrGUID);
+
+        if (isSuccess == 0) {
+            new Exception("添加入仓订单失败");
+        }
+        return ummInHdrGUID;
+    }
+
+    public Map getInStoreInfo(Map map, Map barCodeParams) throws SQLException, ClassNotFoundException {
+        Map params = inOrderDao.getInStoreInfo(map);
+        params.put("nInQty", barCodeParams.get("nInNetQty"));
+        params.put("nInNetQty", barCodeParams.get("nNetQty"));
+        params.put("nInPkgExQty", barCodeParams.get("nPkgExQty"));
+        //获取一个GUID
+        params.put("ummInDtlGUID", inOrderDao.getGUID());
+        return params;
+    }
+
+    public Map getBarCodeInfo(Object barCode, Map map) throws Exception {
+        Map fabricIfnoMap = inOrderDao.findFabricIfnoByBarcode(barCode.toString());
+        if (fabricIfnoMap == null) {
+            throw new Exception("查询布号信息为null");
+        }
+        fabricIfnoMap.put("sCreator", map.get("userName"));
+        fabricIfnoMap.put("sBarCode", barCode);
+        fabricIfnoMap.put("ummInHdrGUID", map.get("ummInHdrGUID"));
+        fabricIfnoMap.put("ummInDtlGUID", map.get("ummInDtlGUID"));
+        return fabricIfnoMap;
+    }
+
+    public ResponseResult rollBack(Connection conn,Exception e){
+        try {
+            conn.rollback();
+            JDBCUtils.close();
+        } catch (SQLException e1) {
+            e1.printStackTrace();
+        }
+        return CommonsResult.getFialResult(e.getMessage());
+    }
+
 }

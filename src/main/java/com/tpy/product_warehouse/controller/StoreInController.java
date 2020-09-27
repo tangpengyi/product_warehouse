@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.*;
 
 import javax.annotation.Resource;
 import java.sql.SQLException;
+import java.text.SimpleDateFormat;
 import java.util.List;
 import java.util.Map;
 
@@ -45,7 +46,8 @@ public class StoreInController {
 
     @ApiOperation(value="保存入仓信息")
     @PostMapping("save_in_order")
-    public ResponseResult addInStore(@RequestBody Map<String,Object> params) throws SQLException, ClassNotFoundException {
+    public ResponseResult addInStore(@RequestBody List<Map<String,Object>> params) throws SQLException, ClassNotFoundException {
+        SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
         return inOrderService.addInStore(params);
     }
 
